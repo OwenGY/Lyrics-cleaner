@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Censor Tool</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0e0e0e;
+            --surface: #1a1a1a;
+            --surface2: #242424;
+            --border: #2e2e2e;
+            --accent: #ff3f3f;
+            --accent2: #ff7c3f;
+            --success: #3fff8f;
+            --text: #f0f0f0;
+            --muted: #666;
+            --mono: 'Space Mono', monospace;
+            --sans: 'DM Sans', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            min-height: 100vh;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 32px 24px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 680px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 28px 32px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 40px; height: 40px;
+            background: var(--accent);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .logo svg { width: 20px; height: 20px; fill: white; }
+
+        .card-header h1 { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+        .card-header p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+        .card-body { padding: 28px 32px; }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            margin-bottom: 20px;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(255, 63, 63, 0.04);
+        }
+        .drop-zone .dz-icon { font-size: 28px; margin-bottom: 8px; }
+        .drop-zone .dz-label { font-size: 14px; color: var(--muted); }
+        .drop-zone .dz-label strong { color: var(--text); }
+        .drop-zone .dz-file { font-family: var(--mono); font-size: 12px; color: var(--accent2); margin-top: 6px; }
+
+        /* Fields */
+        .field { margin-bottom: 18px; }
+        .field label {
+            display: block;
+            font-size: 11px; font-family: var(--mono); font-weight: 700;
+            letter-spacing: 1px; text-transform: uppercase;
+            color: var(--muted); margin-bottom: 8px;
+        }
+        .field input, .field select {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-family: var(--sans); font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+            appearance: none;
+        }
+        .field select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23666' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 36px;
+            cursor: pointer;
+        }
+        .field input:focus, .field select:focus { border-color: var(--accent); }
+        .field input::placeholder { color: var(--muted); }
+        .field-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+        .field-row { display: flex; gap: 12px; margin-bottom: 18px; }
+        .field-row .field { flex: 1; margin-bottom: 0; }
+
+        /* Button */
+        .btn-process {
+            width: 100%; padding: 13px;
+            background: var(--accent); color: white;
+            border: none; border-radius: 6px;
+            font-family: var(--mono); font-size: 13px; font-weight: 700;
+            letter-spacing: 0.5px; cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-process:hover { opacity: 0.9; }
+        .btn-process:active { transform: scale(0.99); }
+        .btn-process:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Status */
+        .status-section {
+            margin-top: 24px; padding-top: 24px;
+            border-top: 1px solid var(--border);
+            display: none;
+        }
+        .status-section.visible { display: block; }
+
+        .status-row {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 14px;
+        }
+        .spinner {
+            width: 16px; height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner.done { border: 2px solid var(--success); animation: none; }
+        .spinner.done::after { content: '✓'; display: block; font-size: 10px; color: var(--success); text-align: center; line-height: 12px; }
+
+        .status-text { font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+        .progress-track {
+            width: 100%; height: 3px;
+            background: var(--border); border-radius: 2px;
+            overflow: hidden; margin-bottom: 16px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 2px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        /* Complete banner */
+        .complete-banner {
+            display: none; padding: 14px 16px;
+            background: rgba(63,255,143,0.08);
+            border: 1px solid rgba(63,255,143,0.25);
+            border-radius: 6px; margin-bottom: 16px;
+        }
+        .complete-banner.visible { display: block; }
+        .complete-banner .b-title { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--success); margin-bottom: 4px; }
+        .complete-banner .b-detail { font-size: 12px; color: var(--muted); }
+
+        /* Download button */
+        .btn-download {
+            width: 100%; padding: 12px;
+            background: transparent;
+            border: 1px solid var(--success);
+            border-radius: 6px;
+            color: var(--success);
+            font-family: var(--mono); font-size: 13px; font-weight: 700;
+            cursor: pointer; letter-spacing: 0.5px;
+            transition: background 0.2s;
+            display: none;
+        }
+        .btn-download:hover { background: rgba(63,255,143,0.08); }
+        .btn-download.visible { display: block; }
+
+        /* Transcript */
+        .transcript-section {
+            margin-top: 20px; padding-top: 20px;
+            border-top: 1px solid var(--border);
+            display: none;
+        }
+        .transcript-section.visible { display: block; }
+        .transcript-label {
+            font-size: 11px; font-family: var(--mono); font-weight: 700;
+            letter-spacing: 1px; text-transform: uppercase;
+            color: var(--muted); margin-bottom: 10px;
+        }
+        .transcript-box {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 14px 16px;
+            font-size: 13px;
+            line-height: 1.7;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .beep-word {
+            background: rgba(255,63,63,0.18);
+            color: var(--accent);
+            border-radius: 3px;
+            padding: 1px 4px;
+            font-weight: 600;
+        }
+
+        /* Error */
+        .error-banner {
+            display: none; margin-top: 16px; padding: 14px 16px;
+            background: rgba(255,63,63,0.08);
+            border: 1px solid rgba(255,63,63,0.25);
+            border-radius: 6px; font-size: 13px; color: var(--accent);
+        }
+        .error-banner.visible { display: block; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="card-header">
+            <div class="logo">
+                <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18A9 9 0 0 0 12 3zm0 2a7 7 0 1 1 0 14A7 7 0 0 1 12 5zm-1 3v5.586l3.707 3.707-1.414 1.414L9 14.414V8h2z"/></svg>
+            </div>
+            <div>
+                <h1>Audio Censor Tool</h1>
+                <p>Beep specific words without changing the rest of the song</p>
+            </div>
+        </div>
+
+        <div class="card-body">
+
+            <!-- Drop zone -->
+            <div class="drop-zone" id="dropZone"
+                 onclick="document.getElementById('fileInput').click()"
+                 ondragover="onDragOver(event)"
+                 ondragleave="onDragLeave(event)"
+                 ondrop="onDrop(event)">
+                <div class="dz-icon">🎵</div>
+                <div class="dz-label"><strong>Click to browse</strong> or drag &amp; drop audio file</div>
+                <div class="dz-label" style="margin-top:4px;font-size:11px;">MP3 · WAV · M4A · FLAC · OGG</div>
+                <div class="dz-file" id="dzFilename"></div>
+            </div>
+            <input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.flac,.ogg" style="display:none" onchange="onFileChosen(event)">
+
+            <!-- Words to censor -->
+            <div class="field">
+                <label>Words to Censor</label>
+                <input type="text" id="censorWords" placeholder="word1, word2, word3">
+                <div class="field-hint">Comma separated. The app will beep each occurrence automatically.</div>
+            </div>
+
+            <!-- Model + match mode row -->
+            <div class="field-row">
+                <div class="field">
+                    <label>Whisper Model</label>
+                    <select id="modelSize">
+                        <option value="tiny">Tiny — Fastest</option>
+                        <option value="base" selected>Base — Balanced</option>
+                        <option value="small">Small — More Accurate</option>
+                        <option value="medium">Medium — High Accuracy</option>
+                        <option value="large">Large — Best Accuracy (recommended for rap)</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Match Mode</label>
+                    <select id="matchMode">
+                        <option value="contains" selected>Contains — sweet, sweeter, bittersweet</option>
+                        <option value="startswith">Starts With — sweet, sweeter (not bittersweet)</option>
+                        <option value="exact">Exact — only the precise word</option>
+                    </select>
+                </div>
+            </div>
+
+            <button class="btn-process" id="processBtn" onclick="startProcessing()" disabled>
+                PROCESS AUDIO
+            </button>
+
+            <!-- Status -->
+            <div class="status-section" id="statusSection">
+                <div class="status-row">
+                    <div class="spinner" id="spinner"></div>
+                    <div class="status-text" id="statusText">Starting...</div>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+
+                <div class="complete-banner" id="completeBanner">
+                    <div class="b-title">✓ PROCESSING COMPLETE</div>
+                    <div class="b-detail" id="completeDetail"></div>
+                </div>
+
+                <button class="btn-download" id="downloadBtn" onclick="downloadFile()">
+                    ↓ DOWNLOAD CENSORED AUDIO
+                </button>
+
+                <div class="transcript-section" id="transcriptSection">
+                    <div class="transcript-label">Transcript — censored words highlighted</div>
+                    <div class="transcript-box" id="transcriptBox"></div>
+                </div>
+            </div>
+
+            <div class="error-banner" id="errorBanner"></div>
+
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+        let pollInterval = null;
+
+        // ── File selection ───────────────────────────────────────────
+        function onFileChosen(e) {
+            setFile(e.target.files[0]);
+        }
+
+        function onDragOver(e) {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.add('drag-over');
+        }
+
+        function onDragLeave(e) {
+            document.getElementById('dropZone').classList.remove('drag-over');
+        }
+
+        function onDrop(e) {
+            e.preventDefault();
+            document.getElementById('dropZone').classList.remove('drag-over');
+            const file = e.dataTransfer.files[0];
+            if (file) setFile(file);
+        }
+
+        function setFile(file) {
+            selectedFile = file;
+            document.getElementById('dzFilename').textContent = file.name;
+            document.getElementById('processBtn').disabled = false;
+            hideEl('errorBanner');
+        }
+
+        // ── Processing ───────────────────────────────────────────────
+        function startProcessing() {
+            if (!selectedFile) return showError('Please select an audio file first.');
+
+            const words = document.getElementById('censorWords').value.trim();
+            if (!words) return showError('Please enter at least one word to censor.');
+
+            const model = document.getElementById('modelSize').value;
+            const matchMode = document.getElementById('matchMode').value;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('censorWords', words);
+            formData.append('modelSize', model);
+            formData.append('matchMode', matchMode);
+
+            // Reset UI
+            hideEl('completeBanner');
+            hideEl('downloadBtn');
+            hideEl('transcriptSection');
+            hideEl('errorBanner');
+            showEl('statusSection');
+            document.getElementById('processBtn').disabled = true;
+            document.getElementById('progressFill').style.width = '5%';
+            document.getElementById('statusText').textContent = 'Uploading...';
+            document.getElementById('spinner').className = 'spinner';
+
+            fetch('/upload', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        showError(data.error);
+                        document.getElementById('processBtn').disabled = false;
+                    } else {
+                        startPolling();
+                    }
+                })
+                .catch(() => {
+                    showError('Upload failed — is the server running?');
+                    document.getElementById('processBtn').disabled = false;
+                });
+        }
+
+        function startPolling() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(pollStatus, 2000);
+        }
+
+        function pollStatus() {
+            fetch('/status')
+                .then(r => r.json())
+                .then(state => {
+                    const status = state.status;
+                    document.getElementById('statusText').textContent = state.message || '';
+
+                    // Animate progress bar based on stage
+                    const pct = { idle: 0, starting: 5, transcribing: 30, processing: 70, exporting: 90, complete: 100, error: 0 };
+                    document.getElementById('progressFill').style.width = (pct[status] || 10) + '%';
+
+                    if (status === 'complete') {
+                        clearInterval(pollInterval);
+                        document.getElementById('spinner').className = 'spinner done';
+                        document.getElementById('processBtn').disabled = false;
+
+                        document.getElementById('completeDetail').textContent =
+                            `${state.found_count} word(s) censored and replaced with beep`;
+
+                        showEl('completeBanner');
+                        showEl('downloadBtn');
+
+                        // Show transcript with highlights
+                        if (state.transcript) {
+                            const highlighted = highlightWords(
+                                state.transcript,
+                                state.censored_words || [],
+                                state.matched_words || [],
+                                state.match_mode || 'contains'
+                            );
+                            document.getElementById('transcriptBox').innerHTML = highlighted;
+                            showEl('transcriptSection');
+                        }
+
+                    } else if (status === 'error') {
+                        clearInterval(pollInterval);
+                        document.getElementById('processBtn').disabled = false;
+                        showError(state.message || 'An unknown error occurred.');
+                    }
+                });
+        }
+
+        function highlightWords(text, censorWords, matchedWords, matchMode) {
+            if (!censorWords.length) return escHtml(text);
+
+            const escaped = censorWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+            let re;
+
+            if (matchMode === 'exact') {
+                // Whole word only
+                re = new RegExp('\\b(' + escaped.join('|') + ')\\b', 'gi');
+            } else if (matchMode === 'startswith') {
+                // Word starts with the censor root
+                re = new RegExp('\\b(' + escaped.map(w => w + '[a-z]*').join('|') + ')\\b', 'gi');
+            } else {
+                // Contains — match any word that includes the root anywhere
+                // Use matched_words from the backend (actual words that were caught)
+                const allMatched = [...new Set([...censorWords, ...(matchedWords || [])])];
+                const allEscaped = allMatched.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                re = new RegExp('(' + allEscaped.join('|') + ')', 'gi');
+            }
+
+            return escHtml(text).replace(re, '<span class="beep-word">$1</span>');
+        }
+
+        function downloadFile() {
+            const a = document.createElement('a');
+            a.href = '/download';
+            a.download = 'censored_audio.mp3';
+            a.click();
+        }
+
+        // ── Utilities ────────────────────────────────────────────────
+        function showError(msg) {
+            const el = document.getElementById('errorBanner');
+            el.textContent = '⚠ ' + msg;
+            showEl('errorBanner');
+        }
+
+        function showEl(id) { document.getElementById(id).classList.add('visible'); }
+        function hideEl(id) { document.getElementById(id).classList.remove('visible'); }
+
+        function escHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+    </script>
+</body>
+</html>
